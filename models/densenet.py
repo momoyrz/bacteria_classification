@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.checkpoint as cp
 from torch import Tensor
-
+from timm.models.registry import register_model
 
 class _DenseLayer(nn.Module):
     def __init__(self,
@@ -204,7 +204,7 @@ class DenseNet(nn.Module):
         out = self.classifier(out)
         return out
 
-
+@register_model
 def densenet121(**kwargs: Any) -> DenseNet:
     # Top-1 error: 25.35%
     # 'densenet121': 'https://download.pytorch.org/models/densenet121-a639ec97.pth'
@@ -214,6 +214,7 @@ def densenet121(**kwargs: Any) -> DenseNet:
                     **kwargs)
 
 
+@register_model
 def densenet169(**kwargs: Any) -> DenseNet:
     # Top-1 error: 24.00%
     # 'densenet169': 'https://download.pytorch.org/models/densenet169-b2777c0a.pth'
@@ -223,6 +224,7 @@ def densenet169(**kwargs: Any) -> DenseNet:
                     **kwargs)
 
 
+@register_model
 def densenet201(**kwargs: Any) -> DenseNet:
     # Top-1 error: 22.80%
     # 'densenet201': 'https://download.pytorch.org/models/densenet201-c1103571.pth'
@@ -232,6 +234,7 @@ def densenet201(**kwargs: Any) -> DenseNet:
                     **kwargs)
 
 
+@register_model
 def densenet161(**kwargs: Any) -> DenseNet:
     # Top-1 error: 22.35%
     # 'densenet161': 'https://download.pytorch.org/models/densenet161-8d451a50.pth'
@@ -239,30 +242,3 @@ def densenet161(**kwargs: Any) -> DenseNet:
                     block_config=(6, 12, 36, 24),
                     num_init_features=96,
                     **kwargs)
-
-
-def load_state_dict(model: nn.Module, weights_path: str) -> None:
-    # '.'s are no longer allowed in module names, but previous _DenseLayer
-    # has keys 'norm.1', 'relu.1', 'conv.1', 'norm.2', 'relu.2', 'conv.2'.
-    # They are also in the checkpoints in model_urls. This pattern is used
-    # to find such keys.
-    pattern = re.compile(
-        r'^(.*denselayer\d+\.(?:norm|relu|conv))\.((?:[12])\.(?:weight|bias|running_mean|running_var))$')
-
-    state_dict = torch.load(weights_path)
-
-    num_classes = model.classifier.out_features
-    load_fc = num_classes == 1000
-
-    for key in list(state_dict.keys()):
-        if load_fc is False:
-            if "classifier" in key:
-                del state_dict[key]
-
-        res = pattern.match(key)
-        if res:
-            new_key = res.group(1) + res.group(2)
-            state_dict[new_key] = state_dict[key]
-            del state_dict[key]
-    model.load_state_dict(state_dict, strict=load_fc)
-    print("successfully load pretrain-weights.")

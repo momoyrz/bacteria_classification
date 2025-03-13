@@ -5,45 +5,30 @@ from torch.utils.data import Dataset
 import numpy as np
 import logging
 
-class_to_idx = {'BCD': 0, 'RP': 1, 'normal': 2}
 
-class CsvDatasets(Dataset):
-    def __init__(self, args, path, data_df, transform=None):
-        self.args = args
-        self.path = path
-        self.data_df = data_df
-        self.transform = transform
-        self.classes = [i for i in range(args.nb_classes)]
-
-    def __len__(self):
-        return len(self.data_df)
-
-    def __getitem__(self, idx):
-        img = self.data_df.iloc[idx]
-        image = Image.open(join(self.path, img['图片']))
-        i_np = np.array(image)[:, :, :3]
-        pil = Image.fromarray(i_np)
-        image = self.transform(pil)
-        return image, img['标签']
-
-class TryyDatasets(Dataset):
-    def __init__(self, args, samples, transform=None):
-        self.args = args
-        self.samples = samples
+class BacteriaDataset(Dataset):
+    def __init__(self, data_list, transform=None):
+        self.data_list = data_list
         self.transform = transform
 
-
     def __len__(self):
-        return len(self.samples)
-
+        return len(self.data_list)
+    
     def __getitem__(self, idx):
-        sample = self.samples[idx]
-        pt_path = join(self.args.data_dir, sample['path'])
-        try:
-            image = torch.load(pt_path)[:3, :, :]
+        item = self.data_list[idx]
+        image_path = item['image_path']
+        image = Image.open(image_path)
+        if self.transform is not None:
             image = self.transform(image)
-        except Exception as e:
-            logging.error(f"Error loading image from {pt_path}: {e}")
-            image = torch.zeros(3, 256, 256)
-        return image, class_to_idx[sample['class']]
+        
+        # 将类别名称映射为整数
+        if not hasattr(self, 'category_to_idx'):
+            # 获取所有唯一的类别名称并排序
+            categories = sorted(list(set(item['category'] for item in self.data_list)))
+            # 创建类别到索引的映射
+            self.category_to_idx = {cat: idx for idx, cat in enumerate(categories)}
+            
+        label = self.category_to_idx[item['category']]
+        
+        return image, label
 

@@ -3,7 +3,7 @@ import copy
 from functools import partial
 from collections import OrderedDict
 from typing import Optional, Callable
-
+from timm.models.registry import register_model
 import torch
 import torch.nn as nn
 from torch import Tensor
@@ -309,6 +309,7 @@ class EfficientNet(nn.Module):
         return self._forward_impl(x)
 
 
+@register_model
 def efficientnet_b0(num_classes=1000):
     # input image size 224x224
     return EfficientNet(width_coefficient=1.0,
@@ -316,7 +317,7 @@ def efficientnet_b0(num_classes=1000):
                         dropout_rate=0.2,
                         num_classes=num_classes)
 
-
+@register_model
 def efficientnet_b1(num_classes=1000):
     # input image size 240x240
     return EfficientNet(width_coefficient=1.0,
@@ -324,7 +325,7 @@ def efficientnet_b1(num_classes=1000):
                         dropout_rate=0.2,
                         num_classes=num_classes)
 
-
+@register_model
 def efficientnet_b2(num_classes=1000):
     # input image size 260x260
     return EfficientNet(width_coefficient=1.1,
@@ -332,7 +333,7 @@ def efficientnet_b2(num_classes=1000):
                         dropout_rate=0.3,
                         num_classes=num_classes)
 
-
+@register_model
 def efficientnet_b3(num_classes=1000):
     # input image size 300x300
     return EfficientNet(width_coefficient=1.2,
@@ -340,7 +341,7 @@ def efficientnet_b3(num_classes=1000):
                         dropout_rate=0.3,
                         num_classes=num_classes)
 
-
+@register_model
 def efficientnet_b4(num_classes=1000):
     # input image size 380x380
     return EfficientNet(width_coefficient=1.4,
@@ -348,7 +349,7 @@ def efficientnet_b4(num_classes=1000):
                         dropout_rate=0.4,
                         num_classes=num_classes)
 
-
+@register_model
 def efficientnet_b5(num_classes=1000):
     # input image size 456x456
     return EfficientNet(width_coefficient=1.6,
@@ -356,7 +357,7 @@ def efficientnet_b5(num_classes=1000):
                         dropout_rate=0.4,
                         num_classes=num_classes)
 
-
+@register_model
 def efficientnet_b6(num_classes=1000):
     # input image size 528x528
     return EfficientNet(width_coefficient=1.8,
@@ -364,7 +365,7 @@ def efficientnet_b6(num_classes=1000):
                         dropout_rate=0.5,
                         num_classes=num_classes)
 
-
+@register_model
 def efficientnet_b7(num_classes=1000):
     # input image size 600x600
     return EfficientNet(width_coefficient=2.0,

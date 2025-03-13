@@ -7,7 +7,7 @@ from collections import OrderedDict
 
 import torch
 import torch.nn as nn
-
+from timm.models.registry import register_model
 
 def drop_path(x, drop_prob: float = 0., training: bool = False):
     """
@@ -304,6 +304,7 @@ def _init_vit_weights(m):
         nn.init.ones_(m.weight)
 
 
+@register_model
 def vit_base_patch16_224(num_classes: int = 1000):
     """
     ViT-Base model (ViT-B/16) from original paper (https://arxiv.org/abs/2010.11929).
@@ -320,7 +321,7 @@ def vit_base_patch16_224(num_classes: int = 1000):
                               num_classes=num_classes)
     return model
 
-
+@register_model
 def vit_base_patch16_224_in21k(num_classes: int = 21843, has_logits: bool = True):
     """
     ViT-Base model (ViT-B/16) from original paper (https://arxiv.org/abs/2010.11929).
@@ -337,7 +338,7 @@ def vit_base_patch16_224_in21k(num_classes: int = 21843, has_logits: bool = True
                               num_classes=num_classes)
     return model
 
-
+@register_model
 def vit_base_patch32_224(num_classes: int = 1000):
     """
     ViT-Base model (ViT-B/32) from original paper (https://arxiv.org/abs/2010.11929).
@@ -354,7 +355,7 @@ def vit_base_patch32_224(num_classes: int = 1000):
                               num_classes=num_classes)
     return model
 
-
+@register_model
 def vit_base_patch32_224_in21k(num_classes: int = 21843, has_logits: bool = True):
     """
     ViT-Base model (ViT-B/32) from original paper (https://arxiv.org/abs/2010.11929).
@@ -372,7 +373,7 @@ def vit_base_patch32_224_in21k(num_classes: int = 21843, has_logits: bool = True
     return model
 
 
-
+@register_model
 def vit_large_patch16_224(num_classes: int = 1000):
     """
     ViT-Large model (ViT-L/16) from original paper (https://arxiv.org/abs/2010.11929).
@@ -389,7 +390,7 @@ def vit_large_patch16_224(num_classes: int = 1000):
                               num_classes=num_classes)
     return model
 
-
+@register_model
 def vit_large_patch16_224_in21k(num_classes: int = 21843, has_logits: bool = True):
     """
     ViT-Large model (ViT-L/16) from original paper (https://arxiv.org/abs/2010.11929).
@@ -406,7 +407,7 @@ def vit_large_patch16_224_in21k(num_classes: int = 21843, has_logits: bool = Tru
                               num_classes=num_classes)
     return model
 
-
+@register_model
 def vit_large_patch32_224_in21k(num_classes: int = 21843, has_logits: bool = True):
     """
     ViT-Large model (ViT-L/32) from original paper (https://arxiv.org/abs/2010.11929).
@@ -423,7 +424,7 @@ def vit_large_patch32_224_in21k(num_classes: int = 21843, has_logits: bool = Tru
                               num_classes=num_classes)
     return model
 
-
+@register_model
 def vit_huge_patch14_224_in21k(num_classes: int = 21843, has_logits: bool = True):
     """
     ViT-Huge model (ViT-H/14) from original paper (https://arxiv.org/abs/2010.11929).

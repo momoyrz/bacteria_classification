@@ -199,9 +199,9 @@ def main(args):
                     pin_memory=args.pin_mem,
                     drop_last=False
                 )
-                logger = create_logger(args.log_dir, 'test')
-                test_state = evaluate(model, criterion, device, data_loader_test, use_amp=args.use_amp, logger=logger,
-                                     header='Test')
+                fold_logger = os.path.join(args.output_dir, f'fold_{fold_idx}')
+                fold_dir = os.path.join(args.output_dir, f'fold_{fold_idx}')
+                test_state = evaluate(model, criterion, device, data_loader_test, use_amp=args.use_amp, logger=fold_logger, fold_dirfold_dir=)
                 logger.info(f"Test acc: {test_state['acc']:.4f}")
                 logger.info(f"Test pre: {test_state['pre']:.4f}")
                 logger.info(f"Test sen: {test_state['sen']:.4f}")
@@ -360,13 +360,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser('All_models training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
     
-    # 从json文件加载配置
     def parse_config(args, config_file):
-        # 从json文件加载配置
         with open(config_file, 'r') as f:
             config = json.load(f)
             
-        # 更新args
         for key, value in config.items():
             if not hasattr(args, key):
                 setattr(args, key, value)

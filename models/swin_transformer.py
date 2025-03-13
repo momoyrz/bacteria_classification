@@ -12,7 +12,7 @@ import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
 import numpy as np
 from typing import Optional
-
+from timm.models.registry import register_model
 
 def drop_path_f(x, drop_prob: float = 0., training: bool = False):
     """Drop paths (Stochastic Depth) per sample (when applied in main path of residual blocks).
@@ -583,6 +583,7 @@ class SwinTransformer(nn.Module):
         return x
 
 
+@register_model
 def swin_tiny_patch4_window7_224(num_classes: int = 1000, **kwargs):
     # trained ImageNet-1K
     # https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_tiny_patch4_window7_224.pth
@@ -596,7 +597,7 @@ def swin_tiny_patch4_window7_224(num_classes: int = 1000, **kwargs):
                             **kwargs)
     return model
 
-
+@register_model
 def swin_small_patch4_window7_224(num_classes: int = 1000, **kwargs):
     # trained ImageNet-1K
     # https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_small_patch4_window7_224.pth
@@ -610,7 +611,7 @@ def swin_small_patch4_window7_224(num_classes: int = 1000, **kwargs):
                             **kwargs)
     return model
 
-
+@register_model
 def swin_base_patch4_window7_224(num_classes: int = 1000, **kwargs):
     # trained ImageNet-1K
     # https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_base_patch4_window7_224.pth
@@ -624,7 +625,7 @@ def swin_base_patch4_window7_224(num_classes: int = 1000, **kwargs):
                             **kwargs)
     return model
 
-
+@register_model
 def swin_base_patch4_window12_384(num_classes: int = 1000, **kwargs):
     # trained ImageNet-1K
     # https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_base_patch4_window12_384.pth
@@ -638,7 +639,7 @@ def swin_base_patch4_window12_384(num_classes: int = 1000, **kwargs):
                             **kwargs)
     return model
 
-
+@register_model
 def swin_base_patch4_window7_224_in22k(num_classes: int = 21841, **kwargs):
     # trained ImageNet-22K
     # https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_base_patch4_window7_224_22k.pth
@@ -652,7 +653,7 @@ def swin_base_patch4_window7_224_in22k(num_classes: int = 21841, **kwargs):
                             **kwargs)
     return model
 
-
+@register_model
 def swin_base_patch4_window12_384_in22k(num_classes: int = 21841, **kwargs):
     # trained ImageNet-22K
     # https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_base_patch4_window12_384_22k.pth
@@ -666,7 +667,7 @@ def swin_base_patch4_window12_384_in22k(num_classes: int = 21841, **kwargs):
                             **kwargs)
     return model
 
-
+@register_model
 def swin_large_patch4_window7_224_in22k(num_classes: int = 21841, **kwargs):
     # trained ImageNet-22K
     # https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_large_patch4_window7_224_22k.pth
@@ -680,7 +681,7 @@ def swin_large_patch4_window7_224_in22k(num_classes: int = 21841, **kwargs):
                             **kwargs)
     return model
 
-
+@register_model 
 def swin_large_patch4_window12_384_in22k(num_classes: int = 21841, **kwargs):
     # trained ImageNet-22K
     # https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_large_patch4_window12_384_22k.pth
