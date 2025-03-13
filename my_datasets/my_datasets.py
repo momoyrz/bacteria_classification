@@ -8,7 +8,7 @@ import json
 
 
 class BacteriaDataset(Dataset):
-    def __init__(self, data_list, transform=None, category_to_idx_path=None):
+    def __init__(self, data_list, transform=None, category_to_idx=None):
         self.data_list = data_list
         self.transform = transform
         self.category_to_idx = category_to_idx

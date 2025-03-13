@@ -216,8 +216,6 @@ def main(args):
             logger.info("All unnecessary models have been deleted.")
 
 
-
-
 def delete_other_models(output_dir, best_epoch):
     for subdir in os.listdir(output_dir):
         for file in os.listdir(os.path.join(output_dir, subdir)):
