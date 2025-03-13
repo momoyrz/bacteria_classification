@@ -12,13 +12,8 @@ import torch
 from torch.backends import cudnn
 from torchvision import transforms
 
-from models.convnext import convnext_tiny, convnext_small
-from models.crossvit import crossvit_tiny_224, crossvit_small_224
-from models.densenet import densenet121
-from models.efficientnet import efficientnet_b0
-from models.resnet import resnet50, resnet101, resnet34
-from models.swin_transformer import swin_tiny_patch4_window7_224, swin_small_patch4_window7_224
-from my_datasets.my_datasets import CsvDatasets, TryyDatasets
+from timm import model_entrypoint, create_fn
+from my_datasets.my_datasets import BacteriaDataset
 from utils.distributed_util import init_distributed_mode, get_rank, get_world_size
 from utils.logger import create_logger
 from utils.loss import FocalLoss
@@ -28,6 +23,7 @@ from utils.save_load_model import load_state_dict, save_model
 from utils.amp_util import NativeScalerWithGradNormCount as NativeScaler
 from utils.train_and_eval import train_one_epoch, evaluate
 from my_datasets.split_data import split_dataset
+from utils.config import model_paths_dict
 
 def str2bool(v):
     """
@@ -46,14 +42,12 @@ def str2bool(v):
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set arguments for training and evaluation', add_help=False)
-    parser.add_argument('--batch_size', default=256, type=int)
+    parser.add_argument('--output_dir', default='./output', type=str)
+    parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--gpu_id', default='2', type=str)
 
     parser.add_argument('--model',
                         default='resnet34',
-                        type=str)
-    parser.add_argument('--finetune',
-                        default='/home/ubuntu/qujunlong/pre_weights/resnet34.pth',
                         type=str)
     parser.add_argument('--model_key',
                         default='model|module',
@@ -73,10 +67,9 @@ def get_args_parser():
 
     parser.add_argument('--seed', default=0, type=int)
 
-    parser.add_argument('--nb_classes', default=3, type=int)
-    parser.add_argument('--data_dir', default='/home/ubuntu/qujunlong/data/tryy/pt_dir', type=str)
-    parser.add_argument('--jsonl_path', default='./my_datasets/tryy_with_normal.jsonl', type=str)
-    parser.add_argument('--modality', default='all', type=str)
+    parser.add_argument('--nb_classes', default=33, type=int)
+    parser.add_argument('--data_dir', default='/home/ubuntu/qujunlong/data/bacteria', type=str)
+    parser.add_argument('--jsonl_path', default='/home/ubuntu/qujunlong/bacteria/bacteria_classification/my_datasets/bacteria_dataset.jsonl', type=str)
 
     parser.add_argument('--loss', default='cross', type=str)
     parser.add_argument('--gamma', default=2.0, type=float)
@@ -101,6 +94,9 @@ def get_args_parser():
     parser.add_argument('--use_amp', type=str2bool, default=True)
     parser.add_argument('--s', default=1, type=int)
 
+    parser.add_argument('--fold', default=5, type=int, help='Number of folds for cross-validation')
+    parser.add_argument('--fold_index', default=-1, type=int, help='Current fold index to use for training (0 to fold-1)')
+
     return parser
 
 
@@ -117,39 +113,135 @@ def main(args):
     cudnn.benchmark = True
 
     image_transform = transforms.Compose([
+        transforms.RandomResizedCrop(224),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomRotation(15),
+        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
+        transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
-    train_data, val_data, test_data = split_dataset(args.jsonl_path, args.modality, train_ratio=0.7, val_ratio=0.1)
+    test_transform = transforms.Compose([
+        transforms.Resize(224),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+
+    # Get all cross-validation folds
+    folds_data = split_dataset(
+        args.data_dir,
+        args.jsonl_path,
+        fold=args.fold,
+        val_size=0.1,
+        random_state=args.seed
+    )
+
+    # Set timestamp prefix for all folds
+    args.output_dir = os.path.join(args.output_dir, args.model, datetime.now().strftime('%Y%m%d_%H%M%S'))
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir, exist_ok=True)
+
+    logger = create_logger(args.output_dir, 'main')
+    with open(os.path.join(args.output_dir, 'args.json'), 'w') as f:
+        json.dump(args.__dict__, f, indent=2)
+    # Train on the specified fold or all folds
+    if args.fold_index >= 0:
+        # Train on a specific fold
+        train_one_fold(args, folds_data[args.fold_index], image_transform, test_transform, device)
+    else:
+        # Train on all folds
+        all_results = []
+        for fold_idx in range(args.fold):
+            logger.info(f"\n=== Training on Fold {fold_idx} ===\n")
+            args.fold_index = fold_idx
+            fold_results = train_one_fold(args, folds_data[fold_idx], image_transform, test_transform, device)
+            all_results.append(fold_results)
+
+        # Calculate and log average results across all folds
+        if get_rank() == 0:
+            # 计算每一个 epoch 的平均 acc
+            epoch_acc = {i: 0 for i in range(args.epochs)}
+            for fold_results in all_results:
+                for epoch, acc in enumerate(fold_results['val_acc']):
+                    epoch_acc[epoch] += acc
+            for epoch in epoch_acc:
+                epoch_acc[epoch] /= len(all_results)
+
+            # 打印结果
+            logger.info("\n=== Cross-Validation Results ===")
+            for epoch, acc in epoch_acc.items():
+                logger.info(f"Epoch {epoch}: {acc:.4f}")
+
+            # 使用平均 acc 最高的 epoch 的模型，进行测试
+            best_epoch = max(epoch_acc, key=epoch_acc.get)
+            logger.info(f"\n=== Using Epoch {best_epoch} Model ===")
+
+            # 拿到所有 fold 的 best_epoch 的模型路径
+            best_model_paths = []
+            for results in all_results:
+                best_model_paths.append(os.path.join(results['checkpoint_dir'], 'checkpoint-{}.pth'.format(best_epoch)))
+
+            # test
+            criterion = torch.nn.CrossEntropyLoss()
+            for model_path in best_model_paths:
+                model = create_fn(num_classes=args.nb_classes)
+                checkpoint = torch.load(model_path, map_location='cpu')
+                model.load_state_dict(checkpoint['model'])
+                model.eval()
+                test_dataset = BacteriaDataset(folds_data[fold_idx]['test'], transform=test_transform)
+                sampler_test = torch.utils.data.SequentialSampler(test_dataset)
+                data_loader_test = torch.utils.data.DataLoader(
+                    test_dataset, sampler=sampler_test,
+                    batch_size=int(2 * args.batch_size),
+                    num_workers=args.num_workers,
+                    pin_memory=args.pin_mem,
+                    drop_last=False
+                )
+                logger = create_logger(args.log_dir, 'test')
+                test_state = evaluate(model, criterion, device, data_loader_test, use_amp=args.use_amp, logger=logger,
+                                     header='Test')
+                logger.info(f"Test acc: {test_state['acc']:.4f}")
+                logger.info(f"Test pre: {test_state['pre']:.4f}")
+                logger.info(f"Test sen: {test_state['sen']:.4f}")
+                logger.info(f"Test f1: {test_state['f1']:.4f}")
+                logger.info(f"Test spec: {test_state['spec']:.4f}")
+                logger.info(f"Test kappa: {test_state['kappa']:.4f}")
+                logger.info(f"Test auc: {test_state['auc']:.4f}")
+                logger.info(f"Test qwk: {test_state['qwk']:.4f}")
+            delete_other_models(args.output_dir, best_epoch)
+            logger.info("All unnecessary models have been deleted.")
+
+
+
+
+def delete_other_models(output_dir, best_epoch):
+    for subdir in os.listdir(output_dir):
+        for file in os.listdir(os.path.join(output_dir, subdir)):
+            if file.endswith('.pth') and file != f'checkpoint-{best_epoch}.pth':
+                os.remove(os.path.join(output_dir, subdir, file))
+
+def train_one_fold(args, fold_data, image_transform, test_transform, device):
+    train_data = fold_data['train']
+    val_data = fold_data['val']
 
     num_tasks = get_world_size()
     global_rank = get_rank()
 
-    train_dataset = TryyDatasets(args, train_data, transform=image_transform)
-    val_dataset = TryyDatasets(args, val_data, transform=image_transform)
-    test_dataset = TryyDatasets(args, test_data, transform=image_transform)
+    train_dataset = BacteriaDataset(train_data, transform=image_transform)
+    val_dataset = BacteriaDataset(val_data, transform=test_transform)
 
     sampler_train = torch.utils.data.DistributedSampler(train_dataset, num_tasks, global_rank,
                                                         shuffle=True, seed=args.seed)
-    sampler_val = torch.utils.data.SequentialSampler(val_dataset)
-    sampler_test = torch.utils.data.SequentialSampler(test_dataset)
+    sampler_val = torch.utils.data.DistributedSampler(val_dataset, num_tasks, global_rank,
+                                                      shuffle=False, seed=args.seed)
 
     if global_rank == 0:  # 如果是主进程，创造日志文件
-        # 暂停args.s秒
-        time.sleep(args.s)
-        args.prefix = datetime.now().strftime('%Y%m%d_%H%M%S')
-        time_str = datetime.now().strftime('%Y%m%d')
-        args.log_dir = '/home/ubuntu/qujunlong/txyy/output/other/' + args.model + '/' + args.prefix
-        args.output_dir = '/home/ubuntu/qujunlong/txyy/output/checkpoint/' + args.model + '/' + args.prefix
-        # 如果'train_output/other/' + args.model + '_' + args.prefix这个文件夹不存在，则创建
-        if not os.path.exists(args.log_dir):
-            os.makedirs(args.log_dir, exist_ok=True)
-        if not os.path.exists(args.output_dir):
-            os.makedirs(args.output_dir, exist_ok=True)
-        logger = create_logger(args.log_dir, '')
-        # 将args以json格式保存到args.log_dir下的args.json文件中
-        with open(os.path.join(args.log_dir, 'args.json'), 'w') as f:
-            json.dump(args.__dict__, f, indent=2)
+        fold_output_dir = os.path.join(args.output_dir, f'fold_{args.fold_index}')
+        if not os.path.exists(fold_output_dir):
+            os.makedirs(fold_output_dir, exist_ok=True)
+        logger = create_logger(fold_output_dir, f'fold_{args.fold_index}')
 
     data_loader_train = torch.utils.data.DataLoader(
         train_dataset, sampler=sampler_train,
@@ -167,42 +259,11 @@ def main(args):
         drop_last=False
     )
 
-    data_loader_test = torch.utils.data.DataLoader(
-        test_dataset, sampler=sampler_test,
-        batch_size=int(2 * args.batch_size),
-        num_workers=args.num_workers,
-        pin_memory=args.pin_mem,
-        drop_last=False
-    )
-
-    if args.model == 'resnet50':
-        model = resnet50(num_classes=args.nb_classes)
-    elif args.model == 'resnet101':
-        model = resnet101(num_classes=args.nb_classes)
-    elif args.model == 'resnet34':
-        model = resnet34(num_classes=args.nb_classes)
-    elif args.model == 'densenet121':
-        model = densenet121(num_classes=args.nb_classes)
-    elif args.model == 'swin_tiny_patch4_window7_224':
-        model = swin_tiny_patch4_window7_224(num_classes=args.nb_classes)
-    elif args.model == 'swin_small_patch4_window7_224':
-        model = swin_small_patch4_window7_224(num_classes=args.nb_classes)
-    elif args.model == 'efficientnet_b0':
-        model = efficientnet_b0(num_classes=args.nb_classes)
-    elif args.model == 'crossvit_tiny_224':
-        model = crossvit_tiny_224(num_classes=args.nb_classes)
-    elif args.model == 'crossvit_small_224':
-        model = crossvit_small_224(num_classes=args.nb_classes)
-    elif args.model == 'convnext_tiny_224':
-        model = convnext_tiny(num_classes=args.nb_classes)
-    elif args.model == 'convnext_small_224':
-        model = convnext_small(num_classes=args.nb_classes)
-    elif args.model == 'vit_small_patch16_224':
-        model = timm.create_model('vit_small_patch16_224', num_classes=args.nb_classes)
-
+    create_fn = model_entrypoint(args.model)
+    model = create_fn(num_classes=args.nb_classes)
     if args.finetune:
-        checkpoint = torch.load(args.finetune, map_location='cpu')
-        logger.info(f"Loading model from {args.finetune}")
+        checkpoint = torch.load(model_paths_dict[args.model], map_location='cpu')
+        logger.info(f"Loading model from {model_paths_dict[args.model]}")
         checkpoint_model = None
         for model_key in args.model_key.split('|'):
             if model_key in checkpoint:
@@ -248,27 +309,18 @@ def main(args):
     else:
         criterion = torch.nn.CrossEntropyLoss()
 
-    if args.eval:
-        logger.info('Start evaluating...')
-        # evaluate(model, criterion, device, data_loader_val, 0, logger)
-        return
-
-    max_accuracy = 0.0
-    test_accuracy = 0.0
     logger.info('Start training...')
 
     # 在args.log_dir下创建csv文件
-    train_csv_file = os.path.join(args.log_dir, 'train_stats.csv')
-    val_csv_file = os.path.join(args.log_dir, 'val_stats.csv')
-    test_csv_file = os.path.join(args.log_dir, 'test_stats.csv')
+    train_csv_file = os.path.join(fold_output_dir, 'train_stats.csv')
+    val_csv_file = os.path.join(fold_output_dir, 'val_stats.csv')
     # 将列名写入csv文件
     pd.DataFrame(columns=['epoch', 'train_loss', 'acc', 'pre', 'sen', 'f1', 'spec', 'kappa', 'auc', 'qwk']).to_csv(
         train_csv_file, index=False)
     pd.DataFrame(columns=['epoch', 'val_loss', 'acc', 'pre', 'sen', 'f1', 'spec', 'kappa', 'auc', 'qwk']).to_csv(
         val_csv_file, index=False)
-    pd.DataFrame(columns=['epoch', 'test_loss', 'acc', 'pre', 'sen', 'f1', 'spec', 'kappa', 'auc', 'qwk']).to_csv(
-        test_csv_file, index=False)
 
+    val_acc = []
     start_time = time.time()
     for epoch in range(args.epochs):
         if args.distributed:
@@ -281,37 +333,46 @@ def main(args):
         with open(train_csv_file, 'a+') as f:
             row = [epoch] + list(train_stats.values())
             f.write(','.join(map(str, row)) + '\n')
-        if args.output_dir and args.save_ckpt:
+        if args.save_ckpt:
             if (epoch + 1) % args.save_ckpt_freq == 0 or epoch == args.epochs - 1:
-                save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler)
+                save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler, fold_output_dir)
 
-        val_state = evaluate(model, criterion, device, data_loader_val, epoch, use_amp=args.use_amp, logger=logger,
+        val_state = evaluate(model, criterion, device, data_loader_val, use_amp=args.use_amp, logger=logger,
                              header='Val')
         with open(val_csv_file, 'a+') as f:
             row = [epoch] + list(val_state.values())
             f.write(','.join(map(str, row)) + '\n')
-
-        test_state = evaluate(model, criterion, device, data_loader_test, epoch, use_amp=args.use_amp, logger=logger,
-                              header='Test')
-        with open(test_csv_file, 'a+') as f:
-            row = [epoch] + list(test_state.values())
-            f.write(','.join(map(str, row)) + '\n')
-
-        logger.info(f"Max accuracy in Val_set: {max_accuracy}")
-
-        if val_state['acc'] > max_accuracy:
-            max_accuracy = val_state['acc']
-            test_accuracy = test_state['acc']
-            save_model(args=args, epoch='best', model=model, model_without_ddp=model_without_ddp,
-                       optimizer=optimizer, loss_scaler=loss_scaler)
-        logger.info(f"Max accuracy in Val_set: {max_accuracy}, accuracy in Test_set: {test_accuracy}")
+        val_acc.append(val_state['acc'])
 
     total_time = time.time() - start_time
     total_time_str = str(timedelta(seconds=int(total_time)))
     logger.info('Training time {}'.format(total_time_str))
 
+    # Return the best validation and test accuracies for cross-validation aggregation
+    return {
+        'val_acc': val_acc,
+        'fold_index': args.fold_index,
+        'checkpoint_dir': fold_output_dir
+    }
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('All_models training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
-    main(args)
+    
+    # 从json文件加载配置
+    def parse_config(args, config_file):
+        # 从json文件加载配置
+        with open(config_file, 'r') as f:
+            config = json.load(f)
+            
+        # 更新args
+        for key, value in config.items():
+            if not hasattr(args, key):
+                setattr(args, key, value)
+            elif getattr(args, key) != value:
+                print(f"Warning: {key} in config file ({value}) differs from command line argument ({getattr(args, key)})")
+        return args
+
+    args = parse_config(args, 'config.json')
+    main(args)  

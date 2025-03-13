@@ -56,8 +56,8 @@ def load_state_dict(model, state_dict, prefix='', ignore_missing="relative_posit
         print('\n'.join(error_msgs))
 
 
-def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler):
-    output_dir = Path(args.output_dir)
+def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler, fold_output_dir):
+    output_dir = Path(fold_output_dir)
     epoch_name = str(epoch)
     output_dir.mkdir(exist_ok=True)
     checkpoint_paths = [output_dir / 'checkpoint-{}.pth'.format(epoch_name)]

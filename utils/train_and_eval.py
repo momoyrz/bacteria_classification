@@ -89,7 +89,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     return {'train_loss': train_loss, 'acc': acc, 'pre': pre, 'sen': sen, 'f1': f1, 'spec': spec, 'kappa': kappa, 'my_auc': my_auc, 'qwk': qwk}
 
 @torch.no_grad()
-def evaluate(model, criterion, device, data_loader, epoch, use_amp, logger=None, header=None):
+def evaluate(model, criterion, device, data_loader, use_amp, logger=None, header=None):
     model.eval()
     y_true = []
     y_score = pd.DataFrame()
