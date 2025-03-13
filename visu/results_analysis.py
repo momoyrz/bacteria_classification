@@ -49,7 +49,8 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 def test_and_visualize(args, model, device, data_loader_test, use_amp, logger, fold_dir):
-    
+    labels = json.load(open(args.category_to_idx_path))
+    labels = [key for key in labels.keys()]
     with torch.no_grad():
         model.eval()
         y_true = []
@@ -90,7 +91,7 @@ def test_and_visualize(args, model, device, data_loader_test, use_amp, logger, f
     plt.figure(figsize=(10, 8))
 
     sns.heatmap(cm, annot=True, fmt='.20g', cmap='PuRd', annot_kws={'size': 20},
-                xticklabels=lables, yticklabels=lables)
+                xticklabels=labels, yticklabels=labels)
     plt.tick_params(axis='x', labelsize=20)  # 设置x轴标签的字体大小
     plt.tick_params(axis='y', labelsize=20)  # 设置y轴标签的字体大小
     plt.subplots_adjust(left=0.07, right=1.05, bottom=0.07, top=0.95)

@@ -70,6 +70,7 @@ def get_args_parser():
     parser.add_argument('--nb_classes', default=33, type=int)
     parser.add_argument('--data_dir', default='/home/ubuntu/qujunlong/data/bacteria', type=str)
     parser.add_argument('--jsonl_path', default='/home/ubuntu/qujunlong/bacteria/bacteria_classification/my_datasets/bacteria_dataset.jsonl', type=str)
+    parser.add_argument('--category_to_idx_path', default='/home/ubuntu/qujunlong/bacteria/bacteria_classification/my_datasets/category_to_idx.json', type=str)
 
     parser.add_argument('--loss', default='cross', type=str)
     parser.add_argument('--gamma', default=2.0, type=float)
@@ -185,12 +186,13 @@ def main(args):
 
             # test
             criterion = torch.nn.CrossEntropyLoss()
+            category_to_idx = json.load(open(args.category_to_idx_path))
             for model_path in best_model_paths:
                 model = create_fn(num_classes=args.nb_classes)
                 checkpoint = torch.load(model_path, map_location='cpu')
                 model.load_state_dict(checkpoint['model'])
                 model.eval()
-                test_dataset = BacteriaDataset(folds_data[fold_idx]['test'], transform=test_transform)
+                test_dataset = BacteriaDataset(folds_data[fold_idx]['test'], transform=test_transform, category_to_idx=category_to_idx)
                 sampler_test = torch.utils.data.SequentialSampler(test_dataset)
                 data_loader_test = torch.utils.data.DataLoader(
                     test_dataset, sampler=sampler_test,
@@ -229,8 +231,9 @@ def train_one_fold(args, fold_data, image_transform, test_transform, device):
     num_tasks = get_world_size()
     global_rank = get_rank()
 
-    train_dataset = BacteriaDataset(train_data, transform=image_transform)
-    val_dataset = BacteriaDataset(val_data, transform=test_transform)
+    category_to_idx = json.load(open(args.category_to_idx_path))
+    train_dataset = BacteriaDataset(train_data, transform=image_transform, category_to_idx=category_to_idx)
+    val_dataset = BacteriaDataset(val_data, transform=test_transform, category_to_idx=category_to_idx)
 
     sampler_train = torch.utils.data.DistributedSampler(train_dataset, num_tasks, global_rank,
                                                         shuffle=True, seed=args.seed)
