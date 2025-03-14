@@ -360,10 +360,7 @@ if __name__ == '__main__':
             config = json.load(f)
             
         for key, value in config.items():
-            if not hasattr(args, key):
-                setattr(args, key, value)
-            elif getattr(args, key) != value:
-                print(f"Warning: {key} in config file ({value}) differs from command line argument ({getattr(args, key)})")
+            setattr(args, key, value)
         return args
 
     args = parse_config(args, 'config.json')
