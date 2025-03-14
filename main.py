@@ -54,6 +54,7 @@ def get_args_parser():
     parser.add_argument('--model_key',
                         default='model|module',
                         type=str)
+    parser.add_argument('--finetune', type=str2bool, default=False)
 
     parser.add_argument('--opt', default='adamw', type=str)
     parser.add_argument('--opt_eps', default=1e-8, type=float)
