@@ -24,6 +24,8 @@ from utils.amp_util import NativeScalerWithGradNormCount as NativeScaler
 from utils.train_and_eval import train_one_epoch, evaluate
 from my_datasets.split_data import split_dataset
 from utils.config import model_paths_dict
+from visu.results_analysis import test_and_visualize
+
 
 def str2bool(v):
     """
@@ -203,15 +205,7 @@ def main(args):
                 )
                 fold_logger = os.path.join(args.output_dir, f'fold_{fold_idx}')
                 fold_dir = os.path.join(args.output_dir, f'fold_{fold_idx}')
-                test_state = evaluate(model, criterion, device, data_loader_test, use_amp=args.use_amp, logger=fold_logger, fold_dirfold_dir=)
-                logger.info(f"Test acc: {test_state['acc']:.4f}")
-                logger.info(f"Test pre: {test_state['pre']:.4f}")
-                logger.info(f"Test sen: {test_state['sen']:.4f}")
-                logger.info(f"Test f1: {test_state['f1']:.4f}")
-                logger.info(f"Test spec: {test_state['spec']:.4f}")
-                logger.info(f"Test kappa: {test_state['kappa']:.4f}")
-                logger.info(f"Test auc: {test_state['auc']:.4f}")
-                logger.info(f"Test qwk: {test_state['qwk']:.4f}")
+                test_state = test_and_visualize(model, criterion, device, data_loader_test, use_amp=args.use_amp, logger=fold_logger, fold_dir=fold_dir)
             delete_other_models(args.output_dir, best_epoch)
             logger.info("All unnecessary models have been deleted.")
 
