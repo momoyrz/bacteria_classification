@@ -12,7 +12,7 @@ import torch
 from torch.backends import cudnn
 from torchvision import transforms
 
-from timm import model_entrypoint, create_fn
+from timm import model_entrypoint
 from my_datasets.my_datasets import BacteriaDataset
 from utils.distributed_util import init_distributed_mode, get_rank, get_world_size
 from utils.logger import create_logger
@@ -189,6 +189,7 @@ def main(args):
             criterion = torch.nn.CrossEntropyLoss()
             category_to_idx = json.load(open(args.category_to_idx_path))
             for model_path in best_model_paths:
+                create_fn = model_entrypoint(args.model)
                 model = create_fn(num_classes=args.nb_classes)
                 checkpoint = torch.load(model_path, map_location='cpu')
                 model.load_state_dict(checkpoint['model'])
