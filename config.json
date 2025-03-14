@@ -1,9 +1,8 @@
 {
-    "output_dir": "./output",
+    "output_dir": "../output",
     "batch_size": 128,
     "gpu_id": "2",
     "model": "resnet34",
-    "finetune": "/home/ubuntu/qujunlong/pre_weights/resnet34.pth",
     "model_key": "model|module",
     "opt": "adamw",
     "opt_eps": 1e-8,
@@ -24,9 +23,8 @@
     "gamma": 2.0,
     "alpha": 0.25,
     "save_ckpt": true,
-    "save_ckpt_freq": 2,
-    "save_ckpt_num": 5,
-    "eval": false,
+    "save_ckpt_freq": 1,
+    "save_ckpt_num": 1,
     "num_workers": 12,
     "pin_mem": true,
     "world_size": 1,
@@ -35,5 +33,6 @@
     "dist_url": "env://",
     "device": "cuda",
     "use_amp": true,
-    "s": 1
+    "fold": 10,
+    "fold_index": -1
 }

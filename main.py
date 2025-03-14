@@ -44,7 +44,7 @@ def str2bool(v):
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set arguments for training and evaluation', add_help=False)
-    parser.add_argument('--output_dir', default='./output', type=str)
+    parser.add_argument('--output_dir', default='../output', type=str)
     parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--gpu_id', default='2', type=str)
 
@@ -82,7 +82,6 @@ def get_args_parser():
     parser.add_argument('--save_ckpt_freq', default=2, type=int)
     parser.add_argument('--save_ckpt_num', default=5, type=int)
 
-    parser.add_argument('--eval', type=str2bool, default=False)
     parser.add_argument('--num_workers', default=12, type=int)
     parser.add_argument('--pin_mem', type=str2bool, default=True)
 
@@ -95,7 +94,6 @@ def get_args_parser():
     parser.add_argument('--device', default='cuda', type=str)
 
     parser.add_argument('--use_amp', type=str2bool, default=True)
-    parser.add_argument('--s', default=1, type=int)
 
     parser.add_argument('--fold', default=5, type=int, help='Number of folds for cross-validation')
     parser.add_argument('--fold_index', default=-1, type=int, help='Current fold index to use for training (0 to fold-1)')
@@ -205,7 +203,7 @@ def main(args):
                 )
                 fold_logger = os.path.join(args.output_dir, f'fold_{fold_idx}')
                 fold_dir = os.path.join(args.output_dir, f'fold_{fold_idx}')
-                test_state = test_and_visualize(model, criterion, device, data_loader_test, use_amp=args.use_amp, logger=fold_logger, fold_dir=fold_dir)
+                test_and_visualize(model, criterion, device, data_loader_test, use_amp=args.use_amp, logger=fold_logger, fold_dir=fold_dir)
             delete_other_models(args.output_dir, best_epoch)
             logger.info("All unnecessary models have been deleted.")
 
