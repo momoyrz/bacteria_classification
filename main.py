@@ -188,7 +188,7 @@ def main(args):
             # test
             criterion = torch.nn.CrossEntropyLoss()
             category_to_idx = json.load(open(args.category_to_idx_path))
-            for model_path in best_model_paths:
+            for fold_idx, model_path in enumerate(best_model_paths):
                 create_fn = model_entrypoint(args.model)
                 model = create_fn(num_classes=args.nb_classes)
                 checkpoint = torch.load(model_path, map_location='cpu')
@@ -203,8 +203,8 @@ def main(args):
                     pin_memory=args.pin_mem,
                     drop_last=False
                 )
-                fold_logger = os.path.join(args.output_dir, f'fold_{fold_idx}')
                 fold_dir = os.path.join(args.output_dir, f'fold_{fold_idx}')
+                fold_logger = create_logger(fold_dir, f'fold_{fold_idx}')
                 test_and_visualize(args, model, device, data_loader_test, logger=fold_logger, fold_dir=fold_dir)
             delete_other_models(args.output_dir, best_epoch)
             logger.info("All unnecessary models have been deleted.")
@@ -212,9 +212,10 @@ def main(args):
 
 def delete_other_models(output_dir, best_epoch):
     for subdir in os.listdir(output_dir):
-        for file in os.listdir(os.path.join(output_dir, subdir)):
-            if file.endswith('.pth') and file != f'checkpoint-{best_epoch}.pth':
-                os.remove(os.path.join(output_dir, subdir, file))
+        if os.path.isdir(os.path.join(output_dir, subdir)):
+            for file in os.listdir(os.path.join(output_dir, subdir)):
+                if file.endswith('.pth') and file != f'checkpoint-{best_epoch}.pth':
+                    os.remove(os.path.join(output_dir, subdir, file))
 
 def train_one_fold(args, fold_data, image_transform, test_transform, device):
     train_data = fold_data['train']
