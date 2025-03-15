@@ -205,7 +205,7 @@ def main(args):
                 )
                 fold_logger = os.path.join(args.output_dir, f'fold_{fold_idx}')
                 fold_dir = os.path.join(args.output_dir, f'fold_{fold_idx}')
-                test_and_visualize(model, criterion, device, data_loader_test, use_amp=args.use_amp, logger=fold_logger, fold_dir=fold_dir)
+                test_and_visualize(args, model, device, data_loader_test, logger=fold_logger, fold_dir=fold_dir)
             delete_other_models(args.output_dir, best_epoch)
             logger.info("All unnecessary models have been deleted.")
 

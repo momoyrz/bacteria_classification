@@ -47,7 +47,7 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
-def test_and_visualize(args, model, device, data_loader_test, use_amp, logger, fold_dir):
+def test_and_visualize(args, model, device, data_loader_test, logger, fold_dir):
     labels = json.load(open(args.category_to_idx_path))
     labels = [key for key in labels.keys()]
     with torch.no_grad():
