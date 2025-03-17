@@ -40,7 +40,7 @@ def prepare_multimodal_input(mri_scan, pet_scan):
     """
     return torch.cat([mri_scan, pet_scan], dim=1)
 
- class PatchEmbed3D(nn.Module):
+class PatchEmbed3D(nn.Module):
     def __init__(self, in_chans=2, in_dim=64, dim=96):
         super().__init__()
         self.proj = nn.Identity()
