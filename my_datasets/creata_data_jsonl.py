@@ -1,4 +1,4 @@
-data_dir = '/home/ubuntu/qujunlong/data/bacteria'
+data_dir = '/home/ubuntu/qujunlong/data/EMDS5-Original'
 import os
 from collections import Counter
 
@@ -24,7 +24,7 @@ print(f"\n总共{len(category_counts)}个类别, {sum(category_counts.values())}
 import json
 
 # 创建jsonl文件
-output_file = 'bacteria_dataset.jsonl'
+output_file = 'EMDS5-Original.jsonl'
 
 with open(output_file, 'w', encoding='utf-8') as f:
     for category in categories:
