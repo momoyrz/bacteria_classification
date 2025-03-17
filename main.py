@@ -103,6 +103,7 @@ def get_args_parser():
 
 
 def main(args):
+    os.environ['TORCH_HOME'] = '/home/ubuntu/qujunlong/timm_checkpoint'
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_id
     init_distributed_mode(args)
     print(args)
@@ -365,4 +366,4 @@ if __name__ == '__main__':
         return args
 
     args = parse_config(args, 'config.json')
-    main(args)  
+    main(args)
