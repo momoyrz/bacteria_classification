@@ -6,7 +6,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import time
 from datetime import timedelta
 from inference.classification_metrics import all_metrics
-
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy as sp
@@ -104,3 +104,76 @@ def test_and_visualize(args, model, device, data_loader_test, logger, fold_dir):
     np.savetxt(os.path.join(fold_dir, 'y_pred_test.csv'), y_pred_test, delimiter=',')
     # 保存预测概率
     np.savetxt(os.path.join(fold_dir, 'y_score_test.csv'), y_score, delimiter=',')
+
+    return acc, pre, sen, f1, spec, kappa, my_auc, qwk
+
+
+def process_results(all_acc, all_pre, all_sen, all_f1, all_spec, all_kappa, all_my_auc, all_qwk, logger, args):
+    logger.info(f"All acc: {all_acc}")
+    logger.info(f"All pre: {all_pre}")
+    logger.info(f"All sen: {all_sen}")
+    logger.info(f"All f1: {all_f1}")
+    logger.info(f"All spec: {all_spec}")
+    logger.info(f"All kappa: {all_kappa}")
+    logger.info(f"All my_auc: {all_my_auc}")
+    logger.info(f"All qwk: {all_qwk}")
+
+    # 平均
+    all_acc = np.array(all_acc)
+    all_pre = np.array(all_pre)
+    all_sen = np.array(all_sen)
+    all_f1 = np.array(all_f1)
+    all_spec = np.array(all_spec)
+    all_kappa = np.array(all_kappa) 
+    all_my_auc = np.array(all_my_auc)
+    all_qwk = np.array(all_qwk)
+    logger.info(f"Mean acc: {all_acc.mean()} pre: {all_pre.mean()} sen: {all_sen.mean()} f1: {all_f1.mean()} spec: {all_spec.mean()} kappa: {all_kappa.mean()} my_auc: {all_my_auc.mean()} qwk: {all_qwk.mean()}")
+
+    # 计算均值/标准差
+    acc_mean = all_acc.mean()
+    acc_std = all_acc.std()
+    pre_mean = all_pre.mean()
+    pre_std = all_pre.std()
+    sen_mean = all_sen.mean()
+    sen_std = all_sen.std()
+    f1_mean = all_f1.mean()
+    f1_std = all_f1.std()
+    spec_mean = all_spec.mean()
+    spec_std = all_spec.std()
+    kappa_mean = all_kappa.mean()
+    kappa_std = all_kappa.std()
+    my_auc_mean = all_my_auc.mean()
+    my_auc_std = all_my_auc.std()
+    qwk_mean = all_qwk.mean()
+    qwk_std = all_qwk.std()
+
+    logger.info(f"Mean acc: {acc_mean} pre: {pre_mean} sen: {sen_mean} f1: {f1_mean} spec: {spec_mean} kappa: {kappa_mean} my_auc: {my_auc_mean} qwk: {qwk_mean}")
+    logger.info(f"Std acc: {acc_std} pre: {pre_std} sen: {sen_std} f1: {f1_std} spec: {spec_std} kappa: {kappa_std} my_auc: {my_auc_std} qwk: {qwk_std}")
+
+    # 保存结果
+    with open(os.path.join(args.output_dir, 'results.csv'), 'w') as f:
+        f.write(f"Mean acc: {acc_mean} pre: {pre_mean} sen: {sen_mean} f1: {f1_mean} spec: {spec_mean} kappa: {kappa_mean} my_auc: {my_auc_mean} qwk: {qwk_mean}\n")
+        f.write(f"Std acc: {acc_std} pre: {pre_std} sen: {sen_std} f1: {f1_std} spec: {spec_std} kappa: {kappa_std} my_auc: {my_auc_std} qwk: {qwk_std}\n")
+
+
+def plot_curve(train_csv_file, val_csv_file, fold_output_dir):
+    # 读取csv文件
+    train_df = pd.read_csv(train_csv_file)
+    val_df = pd.read_csv(val_csv_file)
+
+    # 绘制loss曲线
+    plt.figure(figsize=(10, 8))
+    plt.plot(train_df['loss'], label='train')
+    plt.plot(val_df['loss'], label='val')
+    plt.legend()
+    plt.savefig(os.path.join(fold_output_dir, 'loss.png'))
+    plt.close()
+    
+    # 绘制acc曲线
+    plt.figure(figsize=(10, 8))
+    plt.plot(train_df['acc'], label='train')
+    plt.plot(val_df['acc'], label='val')
+    plt.legend()
+    plt.savefig(os.path.join(fold_output_dir, 'acc.png'))
+    plt.close()
+

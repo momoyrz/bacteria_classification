@@ -12,7 +12,7 @@ import torch
 from torch.backends import cudnn
 from torchvision import transforms
 
-from timm import model_entrypoint
+from timm import create_model
 from my_datasets.my_datasets import BacteriaDataset
 from utils.distributed_util import init_distributed_mode, get_rank, get_world_size
 from utils.logger import create_logger
@@ -24,7 +24,7 @@ from utils.amp_util import NativeScalerWithGradNormCount as NativeScaler
 from utils.train_and_eval import train_one_epoch, evaluate
 from my_datasets.split_data import split_dataset
 from utils.config import model_paths_dict
-from visu.results_analysis import test_and_visualize
+from visu.results_analysis import plot_curve, test_and_visualize
 
 
 def str2bool(v):
@@ -51,10 +51,7 @@ def get_args_parser():
     parser.add_argument('--model',
                         default='resnet34',
                         type=str)
-    parser.add_argument('--model_key',
-                        default='model|module',
-                        type=str)
-    parser.add_argument('--finetune', type=str2bool, default=False)
+    parser.add_argument('--pretrained', type=str2bool, default=True)
 
     parser.add_argument('--opt', default='adamw', type=str)
     parser.add_argument('--opt_eps', default=1e-8, type=float)
@@ -187,11 +184,17 @@ def main(args):
                 best_model_paths.append(os.path.join(results['checkpoint_dir'], 'checkpoint-{}.pth'.format(best_epoch)))
 
             # test
-            criterion = torch.nn.CrossEntropyLoss()
             category_to_idx = json.load(open(args.category_to_idx_path))
+            all_acc = []
+            all_pre = []
+            all_sen = []
+            all_f1 = []
+            all_spec = []
+            all_kappa = []
+            all_my_auc = []
+            all_qwk = []
             for fold_idx, model_path in enumerate(best_model_paths):
-                create_fn = model_entrypoint(args.model)
-                model = create_fn(num_classes=args.nb_classes)
+                model = create_model(args.model, num_classes=args.nb_classes)
                 checkpoint = torch.load(model_path, map_location='cpu')
                 model.load_state_dict(checkpoint['model'])
                 model.eval()
@@ -206,10 +209,19 @@ def main(args):
                 )
                 fold_dir = os.path.join(args.output_dir, f'fold_{fold_idx}')
                 fold_logger = create_logger(fold_dir, f'fold_{fold_idx}')
-                test_and_visualize(args, model, device, data_loader_test, logger=fold_logger, fold_dir=fold_dir)
+                acc, pre, sen, f1, spec, kappa, my_auc, qwk = test_and_visualize(args, model, device, data_loader_test, logger=fold_logger, fold_dir=fold_dir)
+                all_acc.append(acc)
+                all_pre.append(pre)
+                all_sen.append(sen)
+                all_f1.append(f1)
+                all_spec.append(spec)
+                all_kappa.append(kappa)
+                all_my_auc.append(my_auc)
+                all_qwk.append(qwk)
+                logger.info(f"Fold {fold_idx} acc: {acc} pre: {pre} sen: {sen} f1: {f1} spec: {spec} kappa: {kappa} my_auc: {my_auc} qwk: {qwk}")           
             delete_other_models(args.output_dir, best_epoch)
             logger.info("All unnecessary models have been deleted.")
-
+            
 
 def delete_other_models(output_dir, best_epoch):
     for subdir in os.listdir(output_dir):
@@ -256,26 +268,9 @@ def train_one_fold(args, fold_data, image_transform, test_transform, device):
         drop_last=False
     )
 
-    create_fn = model_entrypoint(args.model)
-    model = create_fn(num_classes=args.nb_classes)
-    if args.finetune:
-        checkpoint = torch.load(model_paths_dict[args.model], map_location='cpu')
-        logger.info(f"Loading model from {model_paths_dict[args.model]}")
-        checkpoint_model = None
-        for model_key in args.model_key.split('|'):
-            if model_key in checkpoint:
-                checkpoint_model = checkpoint[model_key]
-                break
-
-        if checkpoint_model is None:
-            checkpoint_model = checkpoint
-
-        state_dict = model.state_dict()
-        for k in ['fc.weight', 'fc.bias', 'head.weight', 'head.bias']:
-            if k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape:
-                logger.info(f"Removing key {k} from pretrained checkpoint")
-                del checkpoint_model[k]
-        load_state_dict(model, checkpoint_model, prefix='')
+    
+    model = create_model(args.model, pretrained=args.pretrained, num_classes=args.nb_classes)
+    
     model.to(device)
 
     model_without_ddp = model
@@ -324,8 +319,7 @@ def train_one_fold(args, fold_data, image_transform, test_transform, device):
             data_loader_train.sampler.set_epoch(epoch)
         train_stats = train_one_epoch(model, criterion, data_loader_train, optimizer, device, epoch,
                                       loss_scaler=loss_scaler, start_epoch=epoch, logger=logger,
-                                      lr_scheduler=lr_scheduler_values,
-                                      num_training_steps_per_epoch=num_training_steps_per_epoch,
+                                      lr_scheduler=lr_scheduler_values, num_training_steps_per_epoch=num_training_steps_per_epoch,
                                       use_amp=args.use_amp)
         with open(train_csv_file, 'a+') as f:
             row = [epoch] + list(train_stats.values())
@@ -340,7 +334,9 @@ def train_one_fold(args, fold_data, image_transform, test_transform, device):
             row = [epoch] + list(val_state.values())
             f.write(','.join(map(str, row)) + '\n')
         val_acc.append(val_state['acc'])
-
+    
+    # 绘制loss曲线，acc曲线
+    plot_curve(train_csv_file, val_csv_file, fold_output_dir)
     total_time = time.time() - start_time
     total_time_str = str(timedelta(seconds=int(total_time)))
     logger.info('Training time {}'.format(total_time_str))
