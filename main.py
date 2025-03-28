@@ -306,9 +306,9 @@ def train_one_fold(args, fold_data, image_transform, test_transform, device):
     train_csv_file = os.path.join(fold_output_dir, 'train_stats.csv')
     val_csv_file = os.path.join(fold_output_dir, 'val_stats.csv')
     # 将列名写入csv文件
-    pd.DataFrame(columns=['epoch', 'train_loss', 'acc', 'pre', 'sen', 'f1', 'spec', 'kappa', 'auc', 'qwk']).to_csv(
+    pd.DataFrame(columns=['epoch', 'loss', 'acc', 'pre', 'sen', 'f1', 'spec', 'kappa', 'auc', 'qwk']).to_csv(
         train_csv_file, index=False)
-    pd.DataFrame(columns=['epoch', 'val_loss', 'acc', 'pre', 'sen', 'f1', 'spec', 'kappa', 'auc', 'qwk']).to_csv(
+    pd.DataFrame(columns=['epoch', 'loss', 'acc', 'pre', 'sen', 'f1', 'spec', 'kappa', 'auc', 'qwk']).to_csv(
         val_csv_file, index=False)
 
     val_acc = []
