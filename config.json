@@ -3,7 +3,6 @@
     "batch_size": 128,
     "gpu_id": "2",
     "model": "resnet34",
-    "model_key": "model|module",
     "pretrained": "True",
     "opt": "adamw",
     "opt_eps": 1e-8,

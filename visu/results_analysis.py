@@ -16,12 +16,6 @@ from sklearn.metrics import roc_curve
 from torch.backends import cudnn
 from torchvision import transforms
 
-from models.convnext import convnext_tiny, convnext_small
-from models.crossvit import crossvit_tiny_224, crossvit_small_224
-from models.densenet import densenet121
-from models.efficientnet import efficientnet_b0
-from models.resnet import resnet50, resnet101, resnet34
-from models.swin_transformer import swin_tiny_patch4_window7_224, swin_small_patch4_window7_224
 from utils.distributed_util import init_distributed_mode, get_rank, get_world_size
 from utils.logger import create_logger
 from utils.loss import FocalLoss
