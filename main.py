@@ -23,7 +23,7 @@ from utils.amp_util import NativeScalerWithGradNormCount as NativeScaler
 from utils.train_and_eval import train_one_epoch, evaluate
 from my_datasets.split_data import split_dataset
 from utils.config import model_paths_dict
-from visu.results_analysis import plot_curve, test_and_visualize
+from visu.results_analysis import plot_curve, process_results, test_and_visualize
 
 
 def str2bool(v):
@@ -218,8 +218,13 @@ def main(args):
                 all_my_auc.append(my_auc)
                 all_qwk.append(qwk)
                 logger.info(f"Fold {fold_idx} acc: {acc} pre: {pre} sen: {sen} f1: {f1} spec: {spec} kappa: {kappa} my_auc: {my_auc} qwk: {qwk}")           
+            process_results(all_acc, all_pre, all_sen, all_f1, all_spec, all_kappa, all_my_auc, all_qwk, logger, args)
             delete_other_models(args.output_dir, best_epoch)
             logger.info("All unnecessary models have been deleted.")
+
+            # 输出模型参数量
+            n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
+            logger.info(f"Number of params: {n_parameters}")
             
 
 def delete_other_models(output_dir, best_epoch):
