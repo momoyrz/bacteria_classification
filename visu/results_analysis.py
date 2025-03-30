@@ -144,8 +144,10 @@ def process_results(all_acc, all_pre, all_sen, all_f1, all_spec, all_kappa, all_
     logger.info(f"Mean acc: {acc_mean} pre: {pre_mean} sen: {sen_mean} f1: {f1_mean} spec: {spec_mean} kappa: {kappa_mean} my_auc: {my_auc_mean} qwk: {qwk_mean}")
     logger.info(f"Std acc: {acc_std} pre: {pre_std} sen: {sen_std} f1: {f1_std} spec: {spec_std} kappa: {kappa_std} my_auc: {my_auc_std} qwk: {qwk_std}")
 
-    # 保存结果
+    # 保存结果，每一折的acc、pre、sen、f1、spec、kappa、my_auc、qwk以及mean和std
     with open(os.path.join(args.output_dir, 'results.csv'), 'w') as f:
+        for i in range(args.fold):
+            f.write(f"Fold {i} acc: {all_acc[i]} pre: {all_pre[i]} sen: {all_sen[i]} f1: {all_f1[i]} spec: {all_spec[i]} kappa: {all_kappa[i]} my_auc: {all_my_auc[i]} qwk: {all_qwk[i]}\n")
         f.write(f"Mean acc: {acc_mean} pre: {pre_mean} sen: {sen_mean} f1: {f1_mean} spec: {spec_mean} kappa: {kappa_mean} my_auc: {my_auc_mean} qwk: {qwk_mean}\n")
         f.write(f"Std acc: {acc_std} pre: {pre_std} sen: {sen_std} f1: {f1_std} spec: {spec_std} kappa: {kappa_std} my_auc: {my_auc_std} qwk: {qwk_std}\n")
 
