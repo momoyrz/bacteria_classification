@@ -2,7 +2,7 @@
     "output_dir": "../output",
     "batch_size": 128,
     "gpu_id": "2",
-    "model": "resnet34",
+    "model": "dpn92",
     "pretrained": "True",
     "opt": "adamw",
     "opt_eps": 1e-8,
@@ -34,5 +34,35 @@
     "device": "cuda",
     "use_amp": true,
     "fold": 2,
-    "fold_index": -1
+    "fold_index": -1,
+
+    "data_augmentation_name": "cutmix",
+    "n_holes": 1,
+    "length": 16,
+    "p": 1.0,
+
+    "grid_sizes": [0, 16, 32, 44, 56],
+    "hide_prob": 0.5,
+
+    "d1": 1,
+    "d2": 1,
+    "rotate": 1,
+    "ratio": 0.5,
+    "mode": 0,
+    "prob": 1.0,
+
+    "probability": 0.5,
+    "sl": 0.02,
+    "sh": 0.4,
+    "r1": 0.3,
+    "mean": [0.4914, 0.4822, 0.4465],
+
+    "policies": null,
+    "fixed_posterize": "false",
+
+    "entaugment_M": 0.5,
+
+    "MicrobialDataAug_M": 0.5,
+    "expansion_factor": 30,
+    "online": true
 }
