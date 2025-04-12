@@ -370,10 +370,10 @@ class AutoAugmentAugmentation:
             policies (list, optional): Custom policies list. If None, uses default policies.
             fixed_posterize (bool, optional): Whether to use fixed posterize method. Default is False.
         """
-        # Define constants and helper functions
+        # Define constants
         self.PARAMETER_MAX = 30
         self.policies = kwargs['policies'] or self._get_default_policies()
-        self.fixed_posterize = kwargs['fixed_posterize']
+        self.fixed_posterize = kwargs.get('fixed_posterize', False)
 
         # Setup transformations
         self._setup_transforms()
@@ -390,8 +390,7 @@ class AutoAugmentAugmentation:
         # Transform base class
         self.TransformT = type('TransformT', (object,), {
             '__init__': lambda self, name, xform_fn: setattr(self, 'name', name) or setattr(self, 'xform', xform_fn),
-            'pil_transformer': lambda self, probability, level: self._create_transform_function(self, probability,
-                                                                                                level),
+            'pil_transformer': lambda self, probability, level: self._create_transform_function(self, probability, level)
         })
 
         # Add method to TransformT
@@ -419,11 +418,6 @@ class AutoAugmentAugmentation:
         def int_parameter(level, maxval):
             return int(level * maxval / self.PARAMETER_MAX)
 
-        self.pil_wrap = pil_wrap
-        self.pil_unwrap = pil_unwrap
-        self.float_parameter = float_parameter
-        self.int_parameter = int_parameter
-
         # Define transform implementations
         def _rotate_impl(pil_img, level):
             degrees = int_parameter(level, 30)
@@ -439,7 +433,6 @@ class AutoAugmentAugmentation:
             def impl(pil_img, level):
                 v = float_parameter(level, 1.8) + .1
                 return enhancer(pil_img).enhance(v)
-
             return impl
 
         def _shear_x_impl(pil_img, level):
@@ -497,7 +490,6 @@ class AutoAugmentAugmentation:
             self.color, self.contrast, self.brightness, self.sharpness,
             self.shear_x, self.shear_y, self.translate_x, self.translate_y
         ]
-
         self.AA_ALL_TRANSFORMS = [
             self.flip_lr, self.flip_ud, self.auto_contrast, self.equalize, self.invert,
             self.rotate, self.posterize, self.color, self.contrast, self.brightness,
@@ -509,17 +501,6 @@ class AutoAugmentAugmentation:
         self.AA_NAME_TO_TRANSFORM = {t.name: t for t in self.AA_ALL_TRANSFORMS}
         self.NAME_TO_TRANSFORM = {t.name: t for t in self.ALL_TRANSFORMS}
 
-    def _apply_policy(self, policy, img, use_fixed_posterize=False):
-        """Apply the policy to the image"""
-        nametotransform = self.AA_NAME_TO_TRANSFORM
-        pil_img = self.pil_wrap(img)
-        for xform in policy:
-            assert len(xform) == 3
-            name, probability, level = xform
-            xform_fn = nametotransform[name].pil_transformer(probability, level)
-            pil_img = xform_fn(pil_img)
-        return self.pil_unwrap(pil_img)
-
     def _get_default_policies(self):
         """Generate default augmentation policies"""
         return [
@@ -530,19 +511,32 @@ class AutoAugmentAugmentation:
             [('Equalize', 0.8, 8), ('Invert', 0.1, 3)]
         ]
 
-    def __call__(self, img):
+    def __call__(self, tensor_img):
         """
-        Apply randomly selected data augmentation policy
+        Apply randomly selected data augmentation policy to tensor image
 
         Args:
-            img: Input image
+            tensor_img: Input tensor image of shape [C, H, W]
 
         Returns:
-            Augmented image
+            Augmented tensor image
         """
-        epoch_policy = self.policies[np.random.choice(len(self.policies))]
-        final_img = self._apply_policy(epoch_policy, img, use_fixed_posterize=self.fixed_posterize)
-        return final_img
+        # Convert tensor to PIL Image
+        pil_img = F.to_pil_image(tensor_img)
+
+        # Select a random policy
+        epoch_policy = random.choice(self.policies)
+
+        # Apply policy transforms
+        for xform in epoch_policy:
+            assert len(xform) == 3
+            name, probability, level = xform
+            nametotransform = self.AA_NAME_TO_TRANSFORM
+            xform_fn = nametotransform[name].pil_transformer(probability, level)
+            pil_img = xform_fn(pil_img)
+
+        # Convert back to tensor
+        return F.to_tensor(pil_img)
 
 
 class TrivialAugmentAugmentation:
@@ -594,8 +588,7 @@ class TrivialAugmentAugmentation:
         self.TransformT = type('TransformT', (object,), {
             '__init__': lambda self, name, xform_fn: setattr(self, 'name', name) or setattr(self, 'xform', xform_fn),
             '__repr__': lambda self: '<' + self.name + '>',
-            'pil_transformer': lambda self, probability, level: self._create_transform_function(self, probability,
-                                                                                                level)
+            'pil_transformer': lambda self, probability, level: self._create_transform_function(self, probability, level)
         })
 
         # Add method to TransformT
@@ -619,7 +612,8 @@ class TrivialAugmentAugmentation:
 
         def _posterize_impl(pil_img, level):
             level = int_parameter(level, self.min_max_vals.posterize.max - self.min_max_vals.posterize.min)
-            return ImageOps.posterize(pil_img, self.min_max_vals.posterize.max - level)
+            level = max(self.min_max_vals.posterize.min, self.min_max_vals.posterize.max - level)
+            return ImageOps.posterize(pil_img, level)
 
         def _solarize_impl(pil_img, level):
             level = int_parameter(level, self.min_max_vals.solarize.max)
@@ -653,7 +647,6 @@ class TrivialAugmentAugmentation:
             def impl(pil_img, level):
                 v = float_parameter(level, 1.8) + .1
                 return enhancer(pil_img).enhance(v)
-
             return impl
 
         # Create transform instances
@@ -680,23 +673,28 @@ class TrivialAugmentAugmentation:
             self.translate_x, self.translate_y
         ]
 
-    def __call__(self, img):
+    def __call__(self, tensor_img):
         """
-        Apply TrivialAugment to an image
+        Apply TrivialAugment to input tensor image
 
         Args:
-            img: Input image
+            tensor_img: Input tensor image of shape [C, H, W]
 
         Returns:
-            Augmented image
+            Augmented tensor image
         """
+        # Convert tensor to PIL Image
+        pil_img = F.to_pil_image(tensor_img)
+
         # Randomly select an operation
         op = random.choices(self.ALL_TRANSFORMS, k=1)[0]
 
         # Apply with random level
         level = random.randint(0, self.PARAMETER_MAX)
-        img = op.pil_transformer(1., level)(img)
-        return img
+        pil_img = op.pil_transformer(1., level)(pil_img)
+
+        # Convert back to tensor
+        return F.to_tensor(pil_img)
 
 
 class SoftAugAugmentation:
@@ -858,19 +856,14 @@ class SoftAugAugmentation:
 
 
 class EntAugmentAugmentation:
-    """
-    EntAugment data augmentation method that randomly selects a transform
-    operation and applies it at a specific intensity.
-    """
-
     def __init__(self, **kwargs):
         """
-        Initialize EntAugment with a specific intensity parameter
+        Initialize EntAugment with tensor support
 
         Args:
             M (float): Intensity parameter in range [0,1]. Higher values produce stronger augmentation.
         """
-        self.M = kwargs['entaugment_M']
+        self.M = kwargs.get('entaugment_M', 0.5)
 
         # Initialize all required components
         self._setup_transforms()
@@ -882,8 +875,7 @@ class EntAugmentAugmentation:
 
         # Create MinMax dataclass
         self.MinMax = type('MinMax', (), {
-            '__init__': lambda self, min_val, max_val: setattr(self, 'min', min_val) or setattr(self, 'max',
-                                                                                                max_val)
+            '__init__': lambda self, min_val, max_val: setattr(self, 'min', min_val) or setattr(self, 'max', max_val)
         })
 
         # Create MinMaxVals
@@ -907,7 +899,7 @@ class EntAugmentAugmentation:
         self.float_parameter = float_parameter
         self.int_parameter = int_parameter
 
-        # Define transform classes
+        # Define transform wrapper classes
         self.TransformFunction = type('TransformFunction', (object,), {
             '__init__': lambda self, func, name: setattr(self, 'f', func) or setattr(self, 'name', name),
             '__repr__': lambda self: '<' + self.name + '>',
@@ -915,12 +907,9 @@ class EntAugmentAugmentation:
         })
 
         self.TransformT = type('TransformT', (object,), {
-            '__init__': lambda self, name, xform_fn: setattr(self, 'name', name) or setattr(self, 'xform',
-                                                                                            xform_fn),
+            '__init__': lambda self, name, xform_fn: setattr(self, 'name', name) or setattr(self, 'xform', xform_fn),
             '__repr__': lambda self: '<' + self.name + '>',
-            'pil_transformer': lambda self, probability, level: self._create_transform_function(self,
-                                                                                                probability,
-                                                                                                level)
+            'pil_transformer': lambda self, probability, level: self._create_transform_function(self, probability, level)
         })
 
         # Add method to TransformT
@@ -944,7 +933,8 @@ class EntAugmentAugmentation:
 
         def _posterize_impl(pil_img, level):
             level = int_parameter(level, self.min_max_vals.posterize.max - self.min_max_vals.posterize.min)
-            return ImageOps.posterize(pil_img, self.min_max_vals.posterize.max - level)
+            level = max(self.min_max_vals.posterize.min, self.min_max_vals.posterize.max - level)
+            return ImageOps.posterize(pil_img, level)
 
         def _solarize_impl(pil_img, level):
             level = int_parameter(level, self.min_max_vals.solarize.max)
@@ -978,7 +968,6 @@ class EntAugmentAugmentation:
             def impl(pil_img, level):
                 v = float_parameter(level, 1.8) + .1
                 return enhancer(pil_img).enhance(v)
-
             return impl
 
         # Create transform instances
@@ -1016,16 +1005,19 @@ class EntAugmentAugmentation:
             self.translate_y
         ]
 
-    def __call__(self, img):
+    def __call__(self, tensor_img):
         """
         Apply randomly selected transform at specified intensity
 
         Args:
-            img: Input image
+            tensor_img: Input tensor image of shape [C, H, W]
 
         Returns:
-            Augmented image
+            Augmented tensor image
         """
+        # Convert tensor to PIL Image
+        pil_img = F.to_pil_image(tensor_img)
+
         # Randomly select a transform operation
         op = random.choices(self.ALL_TRANSFORMS, k=1)[0]
 
@@ -1033,8 +1025,10 @@ class EntAugmentAugmentation:
         level = min(int(self.PARAMETER_MAX * self.M) + 1, self.PARAMETER_MAX)
 
         # Apply transform
-        img = op.pil_transformer(1., level)(img)
-        return img
+        pil_img = op.pil_transformer(1., level)(pil_img)
+
+        # Convert back to tensor
+        return F.to_tensor(pil_img)
 
 
 class MicrobialDataAugmentation:
@@ -1429,28 +1423,28 @@ class MicrobialDataAugmentation:
 
         return transforms_to_apply
 
-    def __call__(self, img, fold_id=None, image_id=None):
+    def __call__(self, tensor_img, fold_id=None, image_id=None):
         """
         应用随机选择的转换序列，强度由M参数控制
 
         Args:
-            img: 输入图像
+            tensor_img: 输入图像张量
             fold_id: 当前交叉验证折编号，用于防止数据泄露
             image_id: 图像的唯一标识符，用于防止数据泄露
 
         Returns:
-            增强的图像
+            增强的图像张量
         """
+        # 将张量转换为PIL图像
+        pil_img = F.to_pil_image(tensor_img)
+
+        # 原有的验证集增强逻辑保持不变
         if fold_id is not None and image_id is not None:
-            # 在线模式下，我们需要确保验证集中使用的图像增强与训练集不同
-            # 这样可以防止模型"记住"特定的增强，而不是学习真正的特征
             key = f"{fold_id}_{image_id}"
 
             if key in self.validation_augmentation_record:
-                # 对于验证集，始终使用相同的随机种子，确保同一图像在不同epoch有相同的增强
                 random.seed(self.validation_augmentation_record[key])
             else:
-                # 如果是第一次遇到这个验证图像，生成一个新的随机种子
                 seed = random.randint(0, 100000)
                 self.validation_augmentation_record[key] = seed
                 random.seed(seed)
@@ -1462,13 +1456,14 @@ class MicrobialDataAugmentation:
         transforms_to_apply = self._generate_transform_sequence()
 
         for transform in transforms_to_apply:
-            img = transform.pil_transformer(1.0, level)(img)
+            pil_img = transform.pil_transformer(1.0, level)(pil_img)
 
         # 重置随机种子
         if fold_id is not None and image_id is not None:
             random.seed()
 
-        return img
+        # 将PIL图像转换回张量
+        return F.to_tensor(pil_img)
     
 class DataAugmentationManager:
     def __init__(self):
