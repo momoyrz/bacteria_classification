@@ -1467,21 +1467,21 @@ class MicrobialDataAugmentation:
     
 class DataAugmentationManager:
     def __init__(self):
-        self.aug_manager = DataAugmentationManager()
-        self.aug_manager.register_augmentation('cutmix', CutMixAugmentation)
-        self.aug_manager.register_augmentation('cutout', CutoutAugmentation)
-        self.aug_manager.register_augmentation('has', HaSAugmentation)
-        self.aug_manager.register_augmentation('grid', GridMaskAugmentation)
-        self.aug_manager.register_augmentation('random_erasing', RandomErasingAugmentation)
-        self.aug_manager.register_augmentation('autoaugment', AutoAugmentAugmentation)
-        self.aug_manager.register_augmentation('trivialaugment', TrivialAugmentAugmentation)
-        self.aug_manager.register_augmentation('softaug', SoftAugAugmentation)
-        self.aug_manager.register_augmentation('entaugment', EntAugmentAugmentation)
-        self.aug_manager.register_augmentation('MicrobialDataAug', MicrobialDataAugmentation)
+        self.augmentations = {}
+        self.register_augmentation('cutmix', CutMixAugmentation)
+        self.register_augmentation('cutout', CutoutAugmentation)
+        self.register_augmentation('has', HaSAugmentation)
+        self.register_augmentation('grid', GridMaskAugmentation)
+        self.register_augmentation('random_erasing', RandomErasingAugmentation)
+        self.register_augmentation('autoaugment', AutoAugmentAugmentation)
+        self.register_augmentation('trivialaugment', TrivialAugmentAugmentation)
+        self.register_augmentation('softaug', SoftAugAugmentation)
+        self.register_augmentation('entaugment', EntAugmentAugmentation)
+        self.register_augmentation('MicrobialDataAug', MicrobialDataAugmentation)
 
     def get_augmentation(self, name, **kwargs):
-        return self.aug_manager.get_augmentation(name, **kwargs)
+        return self.augmentations[name](**kwargs)
 
     def register_augmentation(self, name, augmentation_class):
-        self.aug_manager.register_augmentation(name, augmentation_class)
+        self.augmentations[name] = augmentation_class
 

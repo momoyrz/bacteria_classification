@@ -70,6 +70,7 @@ def get_args_parser():
     parser.add_argument('--data_dir', default='/home/ubuntu/qujunlong/data/bacteria', type=str)
     parser.add_argument('--jsonl_path', default='/home/ubuntu/qujunlong/bacteria/bacteria_classification/my_datasets/bacteria_dataset.jsonl', type=str)
     parser.add_argument('--category_to_idx_path', default='/home/ubuntu/qujunlong/bacteria/bacteria_classification/my_datasets/category_to_idx.json', type=str)
+    parser.add_argument('--data_augmentation_name', default='aug', type=str)
 
     parser.add_argument('--loss', default='cross', type=str)
     parser.add_argument('--gamma', default=2.0, type=float)
@@ -111,23 +112,6 @@ def main(args):
     np.random.seed(seed)
     cudnn.benchmark = True
 
-    image_transform = transforms.Compose([
-        transforms.RandomResizedCrop(224),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomRotation(15),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
-        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
-
-    test_transform = transforms.Compose([
-        transforms.Resize(224),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
-
     # Get all cross-validation folds
     folds_data = split_dataset(
         args.data_dir,
@@ -148,14 +132,14 @@ def main(args):
     # Train on the specified fold or all folds
     if args.fold_index >= 0:
         # Train on a specific fold
-        train_one_fold(args, folds_data[args.fold_index], image_transform, test_transform, device)
+        train_one_fold(args, folds_data[args.fold_index], device)
     else:
         # Train on all folds
         all_results = []
         for fold_idx in range(args.fold):
             logger.info(f"\n=== Training on Fold {fold_idx} ===\n")
             args.fold_index = fold_idx
-            fold_results = train_one_fold(args, folds_data[fold_idx], image_transform, test_transform, device)
+            fold_results = train_one_fold(args, folds_data[fold_idx], device)
             all_results.append(fold_results)
 
         # Calculate and log average results across all folds
@@ -197,7 +181,7 @@ def main(args):
                 checkpoint = torch.load(model_path, map_location='cpu')
                 model.load_state_dict(checkpoint['model'])
                 model.eval()
-                test_dataset = BacteriaDataset(folds_data[fold_idx]['test'], transform=test_transform, category_to_idx=category_to_idx)
+                test_dataset = BacteriaDataset(folds_data[fold_idx]['test'], category_to_idx=category_to_idx)
                 sampler_test = torch.utils.data.SequentialSampler(test_dataset)
                 data_loader_test = torch.utils.data.DataLoader(
                     test_dataset, sampler=sampler_test,
@@ -234,7 +218,7 @@ def delete_other_models(output_dir, best_epoch):
                 if file.endswith('.pth') and file != f'checkpoint-{best_epoch}.pth':
                     os.remove(os.path.join(output_dir, subdir, file))
 
-def train_one_fold(args, fold_data, image_transform, test_transform, device):
+def train_one_fold(args, fold_data, device):
     train_data = fold_data['train']
     val_data = fold_data['val']
 
@@ -242,8 +226,33 @@ def train_one_fold(args, fold_data, image_transform, test_transform, device):
     global_rank = get_rank()
 
     category_to_idx = json.load(open(args.category_to_idx_path))
-    train_dataset = BacteriaDataset(train_data, transform=image_transform, category_to_idx=category_to_idx)
-    val_dataset = BacteriaDataset(val_data, transform=test_transform, category_to_idx=category_to_idx)
+    train_dataset = BacteriaDataset(train_data, 
+                                    category_to_idx=category_to_idx, 
+                                    data_augmentation_name=args.data_augmentation_name,
+                                    n_holes=args.n_holes,
+                                    length=args.length,
+                                    p=args.p,
+                                    grid_sizes=args.grid_sizes,
+                                    hide_prob=args.hide_prob,
+                                    d1=args.d1,
+                                    d2=args.d2,
+                                    rotate=args.rotate,
+                                    ratio=args.ratio,
+                                    mode=args.mode,
+                                    prob=args.prob,
+                                    probability=args.probability,
+                                    sl=args.sl,
+                                    sh=args.sh,
+                                    r1=args.r1,
+                                    mean=args.mean,
+                                    policies=args.policies,
+                                    fixed_posterize=args.fixed_posterize,
+                                    entaugment_M=args.entaugment_M,
+                                    MicrobialDataAug_M=args.MicrobialDataAug_M,
+                                    expansion_factor=args.expansion_factor,
+                                    online=args.online,
+                                    )
+    val_dataset = BacteriaDataset(val_data, category_to_idx=category_to_idx)
 
     sampler_train = torch.utils.data.DistributedSampler(train_dataset, num_tasks, global_rank,
                                                         shuffle=True, seed=args.seed)

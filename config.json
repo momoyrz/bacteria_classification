@@ -36,7 +36,7 @@
     "fold": 2,
     "fold_index": -1,
 
-    "data_augmentation_name": "cutmix",
+    "data_augmentation_name": "cutout",
     "n_holes": 1,
     "length": 16,
     "p": 1.0,

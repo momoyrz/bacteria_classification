@@ -1,4 +1,5 @@
 from os.path import join
+from torchvision import transforms
 import os, torch
 from PIL import Image
 from torch.utils.data import Dataset
@@ -14,7 +15,10 @@ class BacteriaDataset(Dataset):
         self.data_list = data_list
         self.category_to_idx = category_to_idx
         self.data_augmentation_manager = DataAugmentationManager()
-        self.transform = self.data_augmentation_manager.get_augmentation(data_augmentation_name, **kwargs)
+        if data_augmentation_name:
+            self.transform = self.data_augmentation_manager.get_augmentation(data_augmentation_name, **kwargs)
+        else:
+            self.transform = None   
 
     def __len__(self):
         return len(self.data_list)
@@ -23,7 +27,12 @@ class BacteriaDataset(Dataset):
         item = self.data_list[idx]
         image_path = item['image_path']
         image = Image.open(image_path)
-        if self.transform is not None:
+        # 将图像转化成224*224
+        image = image.resize((224, 224))
+        # 将图像转换为tensor
+        image = transforms.ToTensor()(image)
+
+        if self.transform:
             image = self.transform(image)
 
         label = self.category_to_idx[item['category']]
