@@ -1049,9 +1049,6 @@ class MicrobialDataAugmentation:
         # 初始化所有必要组件
         self._setup_transforms()
 
-        # 追踪已用于验证集的增强，防止数据泄露
-        self.validation_augmentation_record = {}
-
     def _setup_transforms(self):
         """设置所有转换函数和常量"""
         # 定义常量
@@ -1423,31 +1420,18 @@ class MicrobialDataAugmentation:
 
         return transforms_to_apply
 
-    def __call__(self, tensor_img, fold_id=None, image_id=None):
+    def __call__(self, tensor_img):
         """
         应用随机选择的转换序列，强度由M参数控制
 
         Args:
             tensor_img: 输入图像张量
-            fold_id: 当前交叉验证折编号，用于防止数据泄露
-            image_id: 图像的唯一标识符，用于防止数据泄露
 
         Returns:
             增强的图像张量
         """
         # 将张量转换为PIL图像
         pil_img = F.to_pil_image(tensor_img)
-
-        # 原有的验证集增强逻辑保持不变
-        if fold_id is not None and image_id is not None:
-            key = f"{fold_id}_{image_id}"
-
-            if key in self.validation_augmentation_record:
-                random.seed(self.validation_augmentation_record[key])
-            else:
-                seed = random.randint(0, 100000)
-                self.validation_augmentation_record[key] = seed
-                random.seed(seed)
 
         # 计算level（强度）
         level = min(int(self.PARAMETER_MAX * self.M) + 1, self.PARAMETER_MAX)
@@ -1457,10 +1441,6 @@ class MicrobialDataAugmentation:
 
         for transform in transforms_to_apply:
             pil_img = transform.pil_transformer(1.0, level)(pil_img)
-
-        # 重置随机种子
-        if fold_id is not None and image_id is not None:
-            random.seed()
 
         # 将PIL图像转换回张量
         return F.to_tensor(pil_img)
