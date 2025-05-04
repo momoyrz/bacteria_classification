@@ -70,8 +70,6 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                 optimizer.step()
                 optimizer.zero_grad()
 
-        torch.cuda.synchronize()
-
         class_acc = (outputs.argmax(dim=1) == targets).float().mean().item()
 
         if logger is not None:
